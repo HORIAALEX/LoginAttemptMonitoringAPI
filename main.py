@@ -1,20 +1,23 @@
-from fastapi import FastAPI, HTTPException, Request
+import os
+from fastapi import FastAPI, Request, HTTPException
 from pydantic import BaseModel
 from datetime import datetime
 from elasticsearch import Elasticsearch
-
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from fastapi.responses import JSONResponse
 from typing import Optional
-from fastapi import Request
+import bcrypt
 
+# ================= FastAPI App =================
+app = FastAPI(
+    title="Login Attempt Tracker",
+    description="Secure login API with Elasticsearch logging",
+    version="1.0.0"
+)
 
-# Create app FIRST
-app = FastAPI(title="Login Attempt Tracker")
-
-# Rate limiter
+# ================= Rate Limiter =================
 limiter = Limiter(key_func=get_remote_address)
 app.state.limiter = limiter
 
@@ -25,44 +28,95 @@ def rate_limit_handler(request: Request, exc: RateLimitExceeded):
         content={"detail": "Too many login attempts"}
     )
 
-# Elasticsearch client
+# ================= Elasticsearch Client =================
+ES_HOST = os.getenv("ELASTIC_URL", "https://localhost:9200")
+ES_USER = os.getenv("ELASTIC_USER", "elastic")
+ES_PASSWORD = os.getenv("ELASTIC_PASSWORD", "oUjJ1jPAv9dToVff9ZwQ")
+
 es = Elasticsearch(
-    ["https://localhost:9200"],
-    basic_auth=("elastic", "oUjJ1jPAv9dToVff9ZwQ"),
-    verify_certs=False
+    [ES_HOST],
+    basic_auth=(ES_USER, ES_PASSWORD),
+    verify_certs=False  # ⚠️ Use proper certs in prod
 )
 
-# Data model
+INDEX_NAME = "login_attempts"
+
+# ================= Dummy User Store =================
+USERS = {
+    "alice": bcrypt.hashpw(b"password123", bcrypt.gensalt()),
+    "bob": bcrypt.hashpw(b"secret456", bcrypt.gensalt()),
+}
+
+# ================= Request Models =================
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
 class LoginAttempt(BaseModel):
     username: str
     ip_address: str
     success: bool
     user_agent: Optional[str] = None
 
-
-@app.post("/login-attempt/")
-@limiter.limit("5/minute")
-def log_login_attempt(request: Request, attempt: LoginAttempt):
+# ================= Utility =================
+def log_attempt(
+    username: str,
+    ip: str,
+    success: bool,
+    user_agent: Optional[str]
+):
     doc = {
-        "username": attempt.username,
-        "ip_address": attempt.ip_address,
+        "username": username,
+        "ip_address": ip,
         "timestamp": datetime.utcnow(),
-        "success": attempt.success,
-        "user_agent": attempt.user_agent
+        "success": success,
+        "user_agent": user_agent,
     }
-    res = es.index(index="login_attempts", document=doc)
-    return {"message": "Login attempt logged", "id": res["_id"]}
+    es.index(index=INDEX_NAME, document=doc)
 
-@app.get("/login-attempts/{username}")
+# ================= Routes =================
+@app.get("/", tags=["Health"])
+def health():
+    return {"message": "Login Attempt Tracker API is running"}
+
+# ================= LOGIN ENDPOINT =================
+@app.post("/login", tags=["Authentication"])
+@limiter.limit("5/minute")
+def login(request: Request, credentials: LoginRequest):
+    username = credentials.username
+    password = credentials.password.encode()
+    ip_address = request.client.host
+    user_agent = request.headers.get("user-agent")
+
+    stored_hash = USERS.get(username)
+
+    success = (
+        stored_hash is not None
+        and bcrypt.checkpw(password, stored_hash)
+    )
+
+    log_attempt(username, ip_address, success, user_agent)
+
+    # Generic error (no user enumeration)
+    if not success:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid username or password"
+        )
+
+    return {"message": "Login successful"}
+
+# ================= Query Endpoints =================
+@app.get("/login-attempts/{username}", tags=["Login Attempts"])
 def get_attempts(username: str):
     res = es.search(
-        index="login_attempts",
+        index=INDEX_NAME,
         query={"term": {"username": username}},
         sort=[{"timestamp": {"order": "desc"}}]
     )
     return {"attempts": [hit["_source"] for hit in res["hits"]["hits"]]}
 
-@app.get("/alerts/failed-logins")
+@app.get("/alerts/failed-logins", tags=["Alerts"])
 def failed_login_alerts():
     query = {
         "size": 0,
@@ -80,6 +134,5 @@ def failed_login_alerts():
             }
         }
     }
-
-    res = es.search(index="login_attempts", body=query)
+    res = es.search(index=INDEX_NAME, body=query)
     return res["aggregations"]["by_user"]["buckets"]
