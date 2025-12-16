@@ -10,14 +10,12 @@ from fastapi.responses import JSONResponse
 from typing import Optional
 import bcrypt
 
-# ================= FastAPI App =================
 app = FastAPI(
     title="Login Attempt Tracker",
     description="Secure login API with Elasticsearch logging",
     version="1.0.0"
 )
 
-# ================= Rate Limiter =================
 limiter = Limiter(key_func=get_remote_address)
 app.state.limiter = limiter
 
@@ -28,7 +26,6 @@ def rate_limit_handler(request: Request, exc: RateLimitExceeded):
         content={"detail": "Too many login attempts"}
     )
 
-# ================= Elasticsearch Client =================
 ES_HOST = os.getenv("ELASTIC_URL", "https://localhost:9200")
 ES_USER = os.getenv("ELASTIC_USER", "elastic")
 ES_PASSWORD = os.getenv("ELASTIC_PASSWORD", "oUjJ1jPAv9dToVff9ZwQ")
@@ -36,18 +33,16 @@ ES_PASSWORD = os.getenv("ELASTIC_PASSWORD", "oUjJ1jPAv9dToVff9ZwQ")
 es = Elasticsearch(
     [ES_HOST],
     basic_auth=(ES_USER, ES_PASSWORD),
-    verify_certs=False  # ⚠️ Use proper certs in prod
+    verify_certs=False  
 )
 
 INDEX_NAME = "login_attempts"
 
-# ================= Dummy User Store =================
 USERS = {
     "alice": bcrypt.hashpw(b"password123", bcrypt.gensalt()),
     "bob": bcrypt.hashpw(b"secret456", bcrypt.gensalt()),
 }
 
-# ================= Request Models =================
 class LoginRequest(BaseModel):
     username: str
     password: str
@@ -58,7 +53,7 @@ class LoginAttempt(BaseModel):
     success: bool
     user_agent: Optional[str] = None
 
-# ================= Utility =================
+
 def log_attempt(
     username: str,
     ip: str,
@@ -74,12 +69,12 @@ def log_attempt(
     }
     es.index(index=INDEX_NAME, document=doc)
 
-# ================= Routes =================
+
 @app.get("/", tags=["Health"])
 def health():
     return {"message": "Login Attempt Tracker API is running"}
 
-# ================= LOGIN ENDPOINT =================
+
 @app.post("/login", tags=["Authentication"])
 @limiter.limit("5/minute")
 def login(request: Request, credentials: LoginRequest):
@@ -97,7 +92,7 @@ def login(request: Request, credentials: LoginRequest):
 
     log_attempt(username, ip_address, success, user_agent)
 
-    # Generic error (no user enumeration)
+   
     if not success:
         raise HTTPException(
             status_code=401,
@@ -106,7 +101,6 @@ def login(request: Request, credentials: LoginRequest):
 
     return {"message": "Login successful"}
 
-# ================= Query Endpoints =================
 @app.get("/login-attempts/{username}", tags=["Login Attempts"])
 def get_attempts(username: str):
     res = es.search(
