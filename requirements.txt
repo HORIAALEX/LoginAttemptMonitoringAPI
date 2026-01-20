@@ -1,0 +1,10 @@
+bcrypt
+elasticsearch>=9.0.0
+fastapi
+httpx
+pyjwt
+pydantic
+pytest
+slowapi
+uvicorn[standard]
+jwt

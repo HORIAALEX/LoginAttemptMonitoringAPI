@@ -1,0 +1,288 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Login Attempt Tracker API</title>
+    <style>
+      :root {
+        --bg: #0f172a;
+        --panel: #111827;
+        --text: #e5e7eb;
+        --muted: #94a3b8;
+        --accent: #38bdf8;
+        --code-bg: #0b1220;
+        --border: #1f2937;
+        --button: #0ea5e9;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        padding: 40px 20px 60px;
+        background: radial-gradient(1200px 600px at 10% 0%, #0b1a33 0%, #0f172a 60%, #0b1220 100%);
+        color: var(--text);
+        font-family: "SF Mono", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      }
+      .container {
+        max-width: 920px;
+        margin: 0 auto;
+      }
+      header {
+        margin-bottom: 28px;
+      }
+      h1 {
+        margin: 0 0 6px 0;
+        font-size: 28px;
+        letter-spacing: 0.2px;
+      }
+      p {
+        margin: 6px 0 0 0;
+        color: var(--muted);
+        font-size: 14px;
+      }
+      .card {
+        background: rgba(17, 24, 39, 0.8);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 18px;
+        margin: 14px 0;
+      }
+      h2 {
+        margin: 0 0 10px 0;
+        font-size: 16px;
+        color: var(--accent);
+      }
+      code, pre {
+        font-size: 13px;
+      }
+      pre {
+        background: var(--code-bg);
+        padding: 12px;
+        border-radius: 10px;
+        border: 1px solid var(--border);
+        overflow-x: auto;
+        margin: 0;
+      }
+      .meta {
+        font-size: 12px;
+        color: var(--muted);
+        margin-bottom: 10px;
+      }
+      .badge {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 999px;
+        background: #0b1f3a;
+        color: var(--accent);
+        border: 1px solid #0ea5e9;
+        font-size: 11px;
+        margin-left: 8px;
+      }
+      .row {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        margin-top: 10px;
+      }
+      input, textarea, button {
+        font-family: inherit;
+        font-size: 13px;
+      }
+      input, textarea {
+        background: #0b1220;
+        color: var(--text);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 8px;
+        width: 100%;
+      }
+      textarea {
+        min-height: 80px;
+        resize: vertical;
+      }
+      button {
+        background: var(--button);
+        color: #00111a;
+        border: none;
+        border-radius: 8px;
+        padding: 8px 12px;
+        cursor: pointer;
+      }
+      button.secondary {
+        background: #1f2937;
+        color: var(--text);
+        border: 1px solid var(--border);
+      }
+      .output {
+        margin-top: 10px;
+        white-space: pre-wrap;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <header>
+        <h1>Login Attempt Tracker API</h1>
+        <p>Simple REST endpoints with cURL examples</p>
+      </header>
+
+      <div class="card">
+        <div class="meta">Base URL <span class="badge">local</span></div>
+        <pre>http://127.0.0.1:8000</pre>
+      </div>
+
+      <div class="card">
+        <h2>Health</h2>
+        <pre>curl http://127.0.0.1:8000/</pre>
+      </div>
+
+      <div class="card">
+        <h2>Create login attempt</h2>
+        <pre>curl -X POST http://127.0.0.1:8000/login-attempts \
+  -H "Content-Type: application/json" \
+  -d '{
+    "username": "alice",
+    "ip_address": "127.0.0.1",
+    "success": false,
+    "user_agent": "curl"
+  }'</pre>
+        <div class="row">
+          <input id="create-username" placeholder="username" value="alice" />
+          <input id="create-ip" placeholder="ip_address" value="127.0.0.1" />
+        </div>
+        <div class="row">
+          <input id="create-success" placeholder="success (true/false)" value="false" />
+          <input id="create-ua" placeholder="user_agent" value="web" />
+        </div>
+        <div class="row">
+          <button onclick="createAttempt()">Send</button>
+        </div>
+        <pre class="output" id="create-output"></pre>
+      </div>
+
+      <div class="card">
+        <h2>List login attempts</h2>
+        <pre>curl "http://127.0.0.1:8000/login-attempts"</pre>
+        <div class="row">
+          <input id="list-username" placeholder="username (optional)" />
+          <input id="list-page" placeholder="page" value="1" />
+          <input id="list-size" placeholder="size" value="20" />
+        </div>
+        <div class="row">
+          <button onclick="listAttempts()">Send</button>
+        </div>
+        <pre class="output" id="list-output"></pre>
+      </div>
+
+      <div class="card">
+        <h2>Get login attempt by id</h2>
+        <pre>curl "http://127.0.0.1:8000/login-attempts/{attempt_id}"</pre>
+        <div class="row">
+          <input id="get-id" placeholder="attempt_id" />
+          <button onclick="getAttempt()">Send</button>
+        </div>
+        <pre class="output" id="get-output"></pre>
+      </div>
+
+      <div class="card">
+        <h2>Update login attempt by id (PUT)</h2>
+        <pre>curl -X PUT "http://127.0.0.1:8000/login-attempts/{attempt_id}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "success": true,
+    "user_agent": "updated-agent"
+  }'</pre>
+        <div class="row">
+          <input id="update-id" placeholder="attempt_id" />
+        </div>
+        <div class="row">
+          <textarea id="update-body">{ "success": true }</textarea>
+        </div>
+        <div class="row">
+          <button onclick="updateAttempt()">Send</button>
+        </div>
+        <pre class="output" id="update-output"></pre>
+      </div>
+
+      <div class="card">
+        <h2>Delete login attempt by id</h2>
+        <pre>curl -X DELETE "http://127.0.0.1:8000/login-attempts/{attempt_id}"</pre>
+        <div class="row">
+          <input id="delete-id" placeholder="attempt_id" />
+          <button class="secondary" onclick="deleteAttempt()">Send</button>
+        </div>
+        <pre class="output" id="delete-output"></pre>
+      </div>
+
+      <div class="card">
+        <h2>Failed login alerts (last 5 minutes, min 5 attempts)</h2>
+        <pre>curl "http://127.0.0.1:8000/alerts/failed-logins"</pre>
+        <div class="row">
+          <button onclick="failedAlerts()">Send</button>
+        </div>
+        <pre class="output" id="alerts-output"></pre>
+      </div>
+    </div>
+    <script>
+      const baseUrl = "http://127.0.0.1:8000";
+
+      async function request(path, options = {}, outputId) {
+        const res = await fetch(baseUrl + path, {
+          headers: { "Content-Type": "application/json" },
+          ...options,
+        });
+        const text = await res.text();
+        const out = document.getElementById(outputId);
+        out.textContent = res.status + " " + res.statusText + "\n" + text;
+      }
+
+      function createAttempt() {
+        const body = {
+          username: document.getElementById("create-username").value,
+          ip_address: document.getElementById("create-ip").value,
+          success: document.getElementById("create-success").value === "true",
+          user_agent: document.getElementById("create-ua").value,
+        };
+        request("/login-attempts", { method: "POST", body: JSON.stringify(body) }, "create-output");
+      }
+
+      function listAttempts() {
+        const username = document.getElementById("list-username").value;
+        const page = document.getElementById("list-page").value;
+        const size = document.getElementById("list-size").value;
+        const params = new URLSearchParams();
+        if (username) params.set("username", username);
+        if (page) params.set("page", page);
+        if (size) params.set("size", size);
+        const qs = params.toString() ? "?" + params.toString() : "";
+        request("/login-attempts" + qs, {}, "list-output");
+      }
+
+      function getAttempt() {
+        const id = document.getElementById("get-id").value;
+        request("/login-attempts/" + encodeURIComponent(id), {}, "get-output");
+      }
+
+      function updateAttempt() {
+        const id = document.getElementById("update-id").value;
+        const body = document.getElementById("update-body").value || "{}";
+        request(
+          "/login-attempts/" + encodeURIComponent(id),
+          { method: "PUT", body },
+          "update-output"
+        );
+      }
+
+      function deleteAttempt() {
+        const id = document.getElementById("delete-id").value;
+        request("/login-attempts/" + encodeURIComponent(id), { method: "DELETE" }, "delete-output");
+      }
+
+      function failedAlerts() {
+        request("/alerts/failed-logins", {}, "alerts-output");
+      }
+    </script>
+  </body>
+</html>
